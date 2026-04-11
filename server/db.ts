@@ -13,8 +13,18 @@ const useSsl =
   databaseUrl?.includes("supabase.co") ||
   databaseUrl?.includes("sslmode=require");
 
+function normalizedConnectionString(connectionString: string | undefined) {
+  if (!connectionString) {
+    return connectionString;
+  }
+
+  const url = new URL(connectionString);
+  url.searchParams.delete("sslmode");
+  return url.toString();
+}
+
 export const pool = new Pool({
-  connectionString: databaseUrl,
+  connectionString: normalizedConnectionString(databaseUrl),
   max: Number(process.env.DATABASE_POOL_SIZE || 5),
   ssl: useSsl ? { rejectUnauthorized: false } : undefined,
 });
