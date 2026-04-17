@@ -20,6 +20,8 @@ import {
   Eye,
   XCircle,
   TrendingUp,
+  Search,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -214,6 +216,9 @@ export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingRental, setEditingRental] = useState<Rental | null>(null);
+  const [filterName, setFilterName] = useState("");
+  const [filterDateFrom, setFilterDateFrom] = useState("");
+  const [filterDateTo, setFilterDateTo] = useState("");
   const { toast } = useToast();
 
   const { data: project, isLoading: projectLoading } = useQuery<Project>({
@@ -231,6 +236,15 @@ export default function ProjectDetail() {
   const { data: equipment } = useQuery<Equipment[]>({
     queryKey: ["/api/equipment"],
   });
+
+  const filteredRentals = (rentals ?? []).filter((r) => {
+    if (filterName && !r.equipmentName.toLowerCase().includes(filterName.toLowerCase())) return false;
+    if (filterDateFrom && r.rentalStartDate && r.rentalStartDate < filterDateFrom) return false;
+    if (filterDateTo && r.rentalStartDate && r.rentalStartDate > filterDateTo) return false;
+    return true;
+  });
+
+  const hasActiveFilters = filterName || filterDateFrom || filterDateTo;
 
   const form = useForm<RentalFormData>({
     resolver: zodResolver(rentalFormSchema),
@@ -840,6 +854,45 @@ export default function ProjectDetail() {
             </Dialog>
           </div>
 
+          <div className="flex flex-wrap gap-2 items-center">
+            <div className="relative flex-1 min-w-[180px]">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Filter by name..."
+                value={filterName}
+                onChange={(e) => setFilterName(e.target.value)}
+                className="pl-8"
+              />
+            </div>
+            <div className="flex items-center gap-1">
+              <Input
+                type="date"
+                value={filterDateFrom}
+                onChange={(e) => setFilterDateFrom(e.target.value)}
+                className="w-36"
+                placeholder="From"
+              />
+              <span className="text-muted-foreground text-sm">–</span>
+              <Input
+                type="date"
+                value={filterDateTo}
+                onChange={(e) => setFilterDateTo(e.target.value)}
+                className="w-36"
+                placeholder="To"
+              />
+            </div>
+            {hasActiveFilters && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { setFilterName(""); setFilterDateFrom(""); setFilterDateTo(""); }}
+              >
+                <X className="h-4 w-4 mr-1" />
+                Clear
+              </Button>
+            )}
+          </div>
+
           {rentalsLoading ? (
             <Card>
               <CardContent className="p-6">
@@ -863,7 +916,14 @@ export default function ProjectDetail() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {rentals.map((rental) => {
+                    {filteredRentals.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                          No equipment matches your filters.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {filteredRentals.map((rental) => {
                       const costToDate = calculateCostToDate(rental);
                       const renewals = getRenewalCycleCount(rental);
 
