@@ -20,6 +20,9 @@ import {
   Eye,
   XCircle,
   TrendingUp,
+  ChevronUp,
+  ChevronDown,
+  ChevronsUpDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -214,7 +217,25 @@ export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingRental, setEditingRental] = useState<Rental | null>(null);
+  const [sortColumn, setSortColumn] = useState<string | null>(null);
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const { toast } = useToast();
+
+  function handleSort(column: string) {
+    if (sortColumn === column) {
+      setSortDirection((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortColumn(column);
+      setSortDirection("asc");
+    }
+  }
+
+  function SortIcon({ column }: { column: string }) {
+    if (sortColumn !== column) return <ChevronsUpDown className="ml-1 h-3 w-3 text-muted-foreground inline" />;
+    return sortDirection === "asc"
+      ? <ChevronUp className="ml-1 h-3 w-3 inline" />
+      : <ChevronDown className="ml-1 h-3 w-3 inline" />;
+  }
 
   const { data: project, isLoading: projectLoading } = useQuery<Project>({
     queryKey: ["/api/projects", id],
@@ -230,6 +251,32 @@ export default function ProjectDetail() {
 
   const { data: equipment } = useQuery<Equipment[]>({
     queryKey: ["/api/equipment"],
+  });
+
+  const sortedRentals = [...(rentals ?? [])].sort((a, b) => {
+    if (!sortColumn) return 0;
+    const dir = sortDirection === "asc" ? 1 : -1;
+
+    switch (sortColumn) {
+      case "equipment":
+        return dir * a.equipmentName.localeCompare(b.equipmentName);
+      case "contract": {
+        const label = (r: Rental) => r.isOpenContract ? (r.contractClosedDate ? "Closed" : "Open") : "Fixed";
+        return dir * label(a).localeCompare(label(b));
+      }
+      case "status":
+        return dir * (a.status ?? "").localeCompare(b.status ?? "");
+      case "dates":
+        return dir * (a.rentalStartDate ?? "").localeCompare(b.rentalStartDate ?? "");
+      case "rate":
+        return dir * (parseFloat(a.monthlyCost) - parseFloat(b.monthlyCost));
+      case "renewals":
+        return dir * (getRenewalCycleCount(a) - getRenewalCycleCount(b));
+      case "cost":
+        return dir * (calculateCostToDate(a) - calculateCostToDate(b));
+      default:
+        return 0;
+    }
   });
 
   const form = useForm<RentalFormData>({
@@ -852,18 +899,18 @@ export default function ProjectDetail() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Equipment</TableHead>
-                      <TableHead>Contract</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Dates</TableHead>
-                      <TableHead>Monthly Rate</TableHead>
-                      <TableHead>Renewals</TableHead>
-                      <TableHead>Cost to Date</TableHead>
+                      <TableHead className="cursor-pointer select-none" onClick={() => handleSort("equipment")}>Equipment<SortIcon column="equipment" /></TableHead>
+                      <TableHead className="cursor-pointer select-none" onClick={() => handleSort("contract")}>Contract<SortIcon column="contract" /></TableHead>
+                      <TableHead className="cursor-pointer select-none" onClick={() => handleSort("status")}>Status<SortIcon column="status" /></TableHead>
+                      <TableHead className="cursor-pointer select-none" onClick={() => handleSort("dates")}>Dates<SortIcon column="dates" /></TableHead>
+                      <TableHead className="cursor-pointer select-none" onClick={() => handleSort("rate")}>Monthly Rate<SortIcon column="rate" /></TableHead>
+                      <TableHead className="cursor-pointer select-none" onClick={() => handleSort("renewals")}>Renewals<SortIcon column="renewals" /></TableHead>
+                      <TableHead className="cursor-pointer select-none" onClick={() => handleSort("cost")}>Cost to Date<SortIcon column="cost" /></TableHead>
                       <TableHead className="w-[50px]"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {rentals.map((rental) => {
+                    {sortedRentals.map((rental) => {
                       const costToDate = calculateCostToDate(rental);
                       const renewals = getRenewalCycleCount(rental);
 
